@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: bash -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/usr/src/app/
+    ports:
+      - 8000:8000
+    depends_on:
+      - db
+  db:
+    image: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=hello_django
+      - POSTGRES_PASSWORD=hello_django
+      - POSTGRES_DB=hello_django_dev
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - 5432:5432
+
+  minio:
+    image: minio/minio:latest
+    volumes:
+      - s3-volume/:/data
+    ports:
+      - "9000:9000"
+      
+    environment:
+      MINIO_ACCESS_KEY: access-key
+      MINIO_SECRET_KEY: secret-key
+    command: server /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 access-key secret-key;
+      /usr/bin/mc mb myminio/my-local-bucket;
+      /usr/bin/mc policy set public myminio/my-local-bucket;
+      exit 0;
+      "
+
+
+volumes:
+  postgres_data:
+  s3-volume:
